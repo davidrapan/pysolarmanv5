@@ -3,12 +3,12 @@ inverter data loggers"""
 
 from .pysolarmanv5 import PySolarmanV5, V5FrameError, NoSocketAvailableError
 from .pysolarmanv5_async import PySolarmanV5Async
-from .pysolarman import PySolarman
+from .pysolarman import PySolarmanAsync
 
 name = "pysolarmanv5"  # pylint: disable=invalid-name (C0103)
 
 __all__ = [
-    "PySolarman"
+    "PySolarmanAsync"
     "PySolarmanV5",
     "PySolarmanV5Async",
     "V5FrameError",
