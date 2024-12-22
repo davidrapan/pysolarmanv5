@@ -15,11 +15,8 @@ CONTROL_CODE.HEARTBEAT = struct.pack("<I", 0x47100001)
 CONTROL_CODE.HEARTBEAT_RESPONSE = struct.pack("<H", 0x1710)
 
 def is_ethernet_frame(frame):
-    if frame[3:5] == CONTROL_CODE.REQUEST and (frame_len := len(frame)):
-        if frame_len > 9:
-            return int.from_bytes(frame[5:6], byteorder = "big") == len(frame[6:]) and int.from_bytes(frame[8:9], byteorder = "big") == len(frame[9:])
-        if frame_len > 6: # [0xa5, 0x17, 0x00, 0x10, 0x45, 0x03, 0x00, 0x98, 0x02]
-            return int.from_bytes(frame[5:6], byteorder = "big") == len(frame[6:])
+    if frame[3:5] == CONTROL_CODE.REQUEST and (frame_len := len(frame)) and frame_len > 6 and (f := int.from_bytes(frame[5:6], byteorder = "big") == len(frame[6:])):
+        return (f and int.from_bytes(frame[8:9], byteorder = "big") == len(frame[9:])) if frame_len > 9 else f # [0xa5, 0x17, 0x00, 0x10, 0x45, 0x03, 0x00, 0x98, 0x02]
     return False
 
 def mb_compatibility(response, request):
