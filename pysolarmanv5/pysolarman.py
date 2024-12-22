@@ -35,13 +35,13 @@ class PySolarmanV5AsyncWrapper(PySolarmanV5Async):
 
     async def connect(self) -> bool:
         if not self.reader_task:
-            self.logger.info(f"[{self.serial}] Connecting to {self.address}:{self.port}")
+            self.log.info(f"[{self.serial}] Connecting to {self.address}:{self.port}")
             await super().connect()
             return True
         return False
 
     async def disconnect(self) -> None:
-        self.logger.info(f"[{self.serial}] Disconnecting from {self.address}:{self.port}")
+        self.log.info(f"[{self.serial}] Disconnecting from {self.address}:{self.port}")
         try:
             await super().disconnect()
         finally:
