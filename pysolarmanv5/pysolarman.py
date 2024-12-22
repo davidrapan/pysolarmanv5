@@ -42,12 +42,7 @@ class PySolarmanV5AsyncWrapper(PySolarmanV5Async):
 
     async def disconnect(self) -> None:
         self.log.info(f"[{self.serial}] Disconnecting from {self.address}:{self.port}")
-        try:
-            await super().disconnect()
-        finally:
-            self.reader_task = None
-            self.reader = None
-            self.writer = None
+        await super().disconnect()
 
 class PySolarmanAsync(PySolarmanV5AsyncWrapper):
     def __init__(self, address, serial, port, mb_slave_id, logger, auto_reconnect, socket_timeout):
