@@ -100,12 +100,12 @@ class PySolarmanAsync(PySolarmanV5AsyncWrapper):
             return await super().write_multiple_coils(register_addr, values)
         return await self._tcp_parse_response_adu(write_multiple_coils(self.mb_slave_id, register_addr, values))
 
-    async def write_holding_register(self, register_addr, value):
+    async def write_single_register(self, register_addr, value):
         if not self._passthrough:
             return await super().write_holding_register(register_addr, value)
         return await self._tcp_parse_response_adu(write_single_register(self.mb_slave_id, register_addr, value))
 
-    async def write_multiple_holding_registers(self, register_addr, values):
+    async def write_multiple_registers(self, register_addr, values):
         if not self._passthrough:
             return await super().write_multiple_holding_registers(register_addr, values)
         return await self._tcp_parse_response_adu(write_multiple_registers(self.mb_slave_id, register_addr, values))
