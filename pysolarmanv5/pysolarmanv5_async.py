@@ -1,8 +1,9 @@
 """pysolarmanv5_async.py"""
 
+import time
 import errno
-import asyncio
 import struct
+import asyncio
 
 from multiprocessing import Event
 from umodbus.client.serial import rtu
@@ -160,6 +161,30 @@ class PySolarmanV5Async(PySolarmanV5):
             self.data_queue.put_nowait(data)
             self.data_wanted_ev.clear()
 
+    async def _handle_protocol_frame(self, frame):
+        """
+        Handles protocol frames with control code 0x4710 (heartbeat frame).
+        """
+        if frame.startswith(self.v5_start + b"\x01\x00\x10\x47"):
+            self.log.debug("[%s] V5_HEARTBEAT: %s", self.serial, frame.hex(" "))
+            response_frame = self._v5_heartbeat_response_frame(frame)
+            self.log.debug("[%s] V5_HEARTBEAT RESP: %s", self.serial, response_frame.hex(" "))
+            try:
+                self.writer.write(response_frame)
+                await self.writer.drain()
+            except (AttributeError, NoSocketAvailableError, TimeoutError, OSError) as e:
+                if isinstance(e, AttributeError):
+                    e = NoSocketAvailableError("Connection already closed")
+                if isinstance(e, OSError) and e.errno == errno.EHOSTUNREACH:
+                    e = TimeoutError
+                self.log.debug(  # pylint: disable=logging-fstring-interpolation
+                    f"[{self.serial}] V5_HEARTBEAT error: {type(e).__name__}{f': {e}' if f'{e}' else ''}"
+                )
+            except Exception as e:
+                self.log.exception("[%s] V5_HEARTBEAT error: %s", self.serial, e)
+            return False
+        return True
+
     async def _conn_keeper(self) -> None:
         """
         Socket reader loop with extra logic when auto-reconnect is enabled
@@ -184,6 +209,8 @@ class PySolarmanV5Async(PySolarmanV5):
                 )
                 break
             if not self._received_frame_is_valid(data):
+                continue
+            if not await self._handle_protocol_frame(data):
                 continue
             if self.data_wanted_ev.is_set():
                 self._send_data(data)
