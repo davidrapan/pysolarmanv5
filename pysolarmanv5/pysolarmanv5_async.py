@@ -75,6 +75,8 @@ class PySolarmanV5Async(PySolarmanV5):
 
         """
         try:
+            if self.reader_task:
+                self.reader_task.cancel()
             self.reader, self.writer = await asyncio.wait_for(
                 asyncio.open_connection(self.address, self.port), self.socket_timeout
             )
