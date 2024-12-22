@@ -66,6 +66,21 @@ class PySolarmanV5Async(PySolarmanV5):
         self.data_wanted_ev = Event()
         self.reader_task: asyncio.Task = None  # noqa
 
+    async def _connect(self) -> None:
+        """
+        Connect to the data logging stick and start the reader loop
+
+        :return: None
+
+        """
+        if self.reader_task:
+            self.reader_task.cancel()
+        self.reader, self.writer = await asyncio.wait_for(
+            asyncio.open_connection(self.address, self.port), self.socket_timeout
+        )
+        loop = asyncio.get_running_loop()
+        self.reader_task = loop.create_task(self._conn_keeper(), name="ConnKeeper")
+
     async def connect(self) -> None:
         """
         Connect to the data logging stick and start the socket reader loop
@@ -75,13 +90,7 @@ class PySolarmanV5Async(PySolarmanV5):
 
         """
         try:
-            if self.reader_task:
-                self.reader_task.cancel()
-            self.reader, self.writer = await asyncio.wait_for(
-                asyncio.open_connection(self.address, self.port), self.socket_timeout
-            )
-            loop = asyncio.get_running_loop()
-            self.reader_task = loop.create_task(self._conn_keeper(), name="ConnKeeper")
+            await self._connect()
         except Exception as e:  # pylint: disable=broad-exception-caught
             raise NoSocketAvailableError(
                 f"Cannot open connection to {self.address}"
@@ -96,13 +105,7 @@ class PySolarmanV5Async(PySolarmanV5):
 
         """
         try:
-            if self.reader_task:
-                self.reader_task.cancel()
-            self.reader, self.writer = await asyncio.wait_for(
-                asyncio.open_connection(self.address, self.port), self.socket_timeout
-            )
-            loop = asyncio.get_running_loop()
-            self.reader_task = loop.create_task(self._conn_keeper(), name="ConnKeeper")
+            await self._connect()
             self.log.debug("[%s] Successful reconnect", self.serial)
             if self.data_wanted_ev.is_set():
                 self.log.debug(
