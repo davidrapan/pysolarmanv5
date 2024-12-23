@@ -53,19 +53,13 @@ class PySolarmanAsync(PySolarmanV5AsyncWrapper):
         return parse_response_adu(await self._tcp_send_receive_frame(mb_request_frame), mb_request_frame)
 
     def _received_frame_is_valid(self, frame):
-        if self._passthrough:
+        if self._passthrough or (is_valid := super()._received_frame_is_valid(frame)):
             return True
-        if not frame.startswith(self.v5_start):
-            self.log.debug("[%s] V5_MISMATCH: %s", self.serial, frame.hex(" "))
-            return False
-        if frame[5] != self.sequence_number and is_ethernet_frame(frame):
+        if not is_valid and is_ethernet_frame(frame):
             self.log.debug("[%s] V5_ETHERNET_DETECTED: %s", self.serial, frame.hex(" "))
             self._passthrough = True
             return True
-        if frame[5] != self.sequence_number:
-            self.log.debug("[%s] V5_SEQ_NO_MISMATCH: %s", self.serial, frame.hex(" "))
-            return False
-        return True
+        return False
 
     async def read_coils(self, register_addr, quantity):
         if not self._passthrough:
