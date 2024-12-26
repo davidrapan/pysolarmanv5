@@ -215,6 +215,7 @@ class PySolarmanV5:
 
         """
         length = 15 + len(modbus_frame)
+
         self.v5_length = struct.pack("<H", length)
         self.v5_seq = struct.pack("<H", self._get_next_sequence_number())
 
@@ -229,10 +230,7 @@ class PySolarmanV5:
             + modbus_frame
         )
 
-        v5_trailer = bytearray(self.v5_checksum + self.v5_end)
-
-        v5_frame = v5_header + v5_payload + v5_trailer
-
+        v5_frame = v5_header + v5_payload + self._v5_trailer()
         v5_frame[-2] = self._calculate_v5_frame_checksum(v5_frame)
         return v5_frame
 
@@ -310,9 +308,7 @@ class PySolarmanV5:
             + struct.pack("<H", 0x0100) # Frame & sensor type?
             + struct.pack("<I", int(time.time()))
             + struct.pack("<I", 0) # Offset?
-            + self.v5_checksum
-            + self.v5_end
-        )
+        ) + self._v5_trailer()
         response_frame[5] = (response_frame[5] + 1) & 0xFF
         response_frame[-2] = self._calculate_v5_frame_checksum(response_frame)
         return response_frame
