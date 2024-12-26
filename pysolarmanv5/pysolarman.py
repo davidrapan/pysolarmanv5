@@ -5,17 +5,12 @@ import struct
 
 from umodbus.client.tcp import read_coils, read_discrete_inputs, read_holding_registers, read_input_registers, write_single_coil, write_multiple_coils, write_single_register, write_multiple_registers, parse_response_adu
 
+from .pysolarmanv5 import CONTROL
 from .pysolarmanv5_async import PySolarmanV5Async
 
 
-CONTROL_CODE = types.SimpleNamespace()
-CONTROL_CODE.REQUEST = struct.pack("<H", 0x4510)
-CONTROL_CODE.RESPONSE = struct.pack("<H", 0x1510)
-CONTROL_CODE.HEARTBEAT = struct.pack("<I", 0x47100001)
-CONTROL_CODE.HEARTBEAT_RESPONSE = struct.pack("<H", 0x1710)
-
 def is_ethernet_frame(frame):
-    if frame[3:5] == CONTROL_CODE.REQUEST and (frame_len := len(frame)) and frame_len > 6 and (f := int.from_bytes(frame[5:6], byteorder = "big") == len(frame[6:])):
+    if frame[4] == CONTROL.REQUEST and (frame_len := len(frame)) and frame_len > 6 and (f := int.from_bytes(frame[5:6], byteorder = "big") == len(frame[6:])):
         return (f and int.from_bytes(frame[8:9], byteorder = "big") == len(frame[9:])) if frame_len > 9 else f # [0xa5, 0x17, 0x00, 0x10, 0x45, 0x03, 0x00, 0x98, 0x02]
     return False
 

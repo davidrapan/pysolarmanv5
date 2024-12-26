@@ -3,6 +3,7 @@
 import time
 import errno
 import queue
+import types
 import struct
 import socket
 import logging
@@ -20,6 +21,15 @@ from umodbus.exceptions import error_code_to_exception_map
 
 
 _WIN_PLATFORM = platform.system() == "Windows"
+
+
+CONTROL = types.SimpleNamespace()
+CONTROL.HANDSHAKE = 0x41
+CONTROL.DATA = 0x42
+CONTROL.INFO = 0x43
+CONTROL.REQUEST = 0x45
+CONTROL.HEARTBEAT = 0x47
+CONTROL.REPORT = 0x48
 
 
 class V5FrameError(Exception):
@@ -111,7 +121,8 @@ class PySolarmanV5:
         # Define and construct V5 request frame structure.
         self.v5_start = bytes.fromhex("A5")
         self.v5_length = bytes.fromhex("0000")  # placeholder value
-        self.v5_controlcode = struct.pack("<H", 0x4510)
+        self.v5_magic = bytes.fromhex("10")
+        self.v5_control = struct.pack("<B", CONTROL.REQUEST)
         self.v5_serial = bytes.fromhex("0000")  # placeholder value
         self.v5_loggerserial = struct.pack("<I", self.serial)
         self.v5_frametype = bytes.fromhex("02")
@@ -135,7 +146,8 @@ class PySolarmanV5:
 
     @staticmethod
     def _calculate_v5_frame_checksum(frame):
-        """Calculate checksum on all frame bytes except head, end and checksum
+        """
+        Calculate checksum on all frame bytes except head, end and checksum
 
         :param frame: V5 frame
         :type frame: bytes
@@ -148,8 +160,30 @@ class PySolarmanV5:
             checksum += frame[i] & 0xFF
         return int(checksum & 0xFF)
 
+    def _v5_header(self, length: int, control: int, seq: bytes) -> bytes:
+        """
+        Construct V5 header
+        
+        """
+        return bytearray(
+            self.v5_start
+            + struct.pack("<H", length)
+            + self.v5_magic
+            + struct.pack("<B", control)
+            + seq
+            + self.v5_loggerserial
+        )
+
+    def _get_response_code(self, control):
+        """
+        Get response control code from request control code
+        
+        """
+        return control - 0x30
+
     def _get_next_sequence_number(self):
-        """Get the next sequence number for use in outgoing packets
+        """
+        Get the next sequence number for use in outgoing packets
 
         If ``sequence_number`` is None, generate a random int as initial value.
 
@@ -164,7 +198,8 @@ class PySolarmanV5:
         return self.sequence_number
 
     def _v5_frame_encoder(self, modbus_frame):
-        """Take a modbus RTU frame and encode it in a V5 data logging stick frame
+        """
+        Take a modbus RTU frame and encode it in a V5 data logging stick frame
 
         :param modbus_frame: Modbus RTU frame
         :type modbus_frame: bytes
@@ -172,17 +207,10 @@ class PySolarmanV5:
         :rtype: bytearray
 
         """
-
         self.v5_length = struct.pack("<H", 15 + len(modbus_frame))
         self.v5_serial = struct.pack("<H", self._get_next_sequence_number())
 
-        v5_header = bytearray(
-            self.v5_start
-            + self.v5_length
-            + self.v5_controlcode
-            + self.v5_serial
-            + self.v5_loggerserial
-        )
+        v5_header = self._v5_header(15 + len(modbus_frame), self.v5_control, self.v5_serial)
 
         v5_payload = bytearray(
             self.v5_frametype
@@ -250,7 +278,7 @@ class PySolarmanV5:
             raise V5FrameError("V5 frame contains invalid sequence number")
         if v5_frame[7:11] != self.v5_loggerserial:
             raise V5FrameError("V5 frame contains incorrect data logger serial number")
-        if v5_frame[3:5] != struct.pack("<H", 0x1510):
+        if v5_frame[3] != self.v5_magic or v5_frame[4] != self._get_response_code(CONTROL.REQUEST):
             raise V5FrameError("V5 frame contains incorrect control code")
         if v5_frame[11] != int("02", 16):
             raise V5FrameError("V5 frame contains invalid frametype")
@@ -270,24 +298,20 @@ class PySolarmanV5:
         """
         Creates time response frame
         """
-        response_frame = bytearray(
-            self.v5_start
-            + struct.pack("<H", 10)
-            + frame[3:7]
-            + self.v5_loggerserial
-            + struct.pack("<H", 0x0100)
+        response_frame = self._v5_header(10, self._get_response_code(frame[4]), frame[5:7]) + bytearray(
+            + struct.pack("<H", 0x0100) # Frame & sensor type?
             + struct.pack("<I", int(time.time()))
-            + struct.pack("<I", 0)
+            + struct.pack("<I", 0) # Offset?
             + self.v5_checksum
             + self.v5_end
         )
-        response_frame[4] = response_frame[4] - 0x30
         response_frame[5] = (response_frame[5] + 1) & 0xFF
         response_frame[-2] = self._calculate_v5_frame_checksum(response_frame)
         return response_frame
 
     def _send_receive_v5_frame(self, data_logging_stick_frame):
-        """Send v5 frame to the data logger and receive response
+        """
+        Send v5 frame to the data logger and receive response
 
         :param data_logging_stick_frame: V5 frame to transmit
         :type data_logging_stick_frame: bytes
@@ -338,27 +362,27 @@ class PySolarmanV5:
         """
         do_continue = True
         response_frame = None
-        if frame[4] == 0x41:
+        if frame[4] == CONTROL.HANDSHAKE:
             do_continue = False
             self.log.debug("[%s] V5_HANDSHAKE: %s", self.serial, frame.hex(" "))
             response_frame = self._v5_time_response_frame(frame)
             self.log.debug("[%s] V5_HANDSHAKE RESP: %s", self.serial, response_frame.hex(" "))
-        if frame[4] == 0x42:
+        if frame[4] == CONTROL.DATA:
             do_continue = False # Maybe True and thus process the packet in the future?
             self.log.debug("[%s] V5_DATA: %s", self.serial, frame.hex(" "))
             response_frame = self._v5_time_response_frame(frame)
             self.log.debug("[%s] V5_DATA RESP: %s", self.serial, response_frame.hex(" "))
-        if frame[4] == 0x43:
+        if frame[4] == CONTROL.INFO:
             do_continue = False
-            self.log.debug("[%s] V5_WIFI: %s", self.serial, frame.hex(" "))
+            self.log.debug("[%s] V5_INFO: %s", self.serial, frame.hex(" "))
             response_frame = self._v5_time_response_frame(frame)
-            self.log.debug("[%s] V5_WIFI RESP: %s", self.serial, response_frame.hex(" "))
-        if frame[4] == 0x47:
+            self.log.debug("[%s] V5_INFO RESP: %s", self.serial, response_frame.hex(" "))
+        if frame[4] == CONTROL.HEARTBEAT:
             do_continue = False
             self.log.debug("[%s] V5_HEARTBEAT: %s", self.serial, frame.hex(" "))
             response_frame = self._v5_time_response_frame(frame)
             self.log.debug("[%s] V5_HEARTBEAT RESP: %s", self.serial, response_frame.hex(" "))
-        if frame[4] == 0x48:
+        if frame[4] == CONTROL.REPORT:
             do_continue = False
             self.log.debug("[%s] V5_REPORT: %s", self.serial, frame.hex(" "))
             response_frame = self._v5_time_response_frame(frame)
