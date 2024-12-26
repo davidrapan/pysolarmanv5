@@ -159,7 +159,7 @@ class PySolarmanV5:
             checksum += frame[i] & 0xFF
         return int(checksum & 0xFF)
 
-    def _v5_header(self, length: int, control: int, seq: bytes) -> bytes:
+    def _v5_header(self, length: int, control: int, seq: bytes) -> bytearray:
         """
         Construct V5 header
         
@@ -173,14 +173,20 @@ class PySolarmanV5:
             + self.v5_loggerserial
         )
 
-    def _get_response_code(self, control):
+    def _v5_trailer(self) -> bytearray:
+        """
+        Construct V5 trailer
+        """
+        return bytearray(self.v5_checksum + self.v5_end)
+
+    def _get_response_code(self, control) -> int:
         """
         Get response control code from request control code
         
         """
         return control - 0x30
 
-    def _get_next_sequence_number(self):
+    def _get_next_sequence_number(self) -> int:
         """
         Get the next sequence number for use in outgoing packets
 
@@ -196,7 +202,7 @@ class PySolarmanV5:
             self.sequence_number = (self.sequence_number + 1) & 0xFF
         return self.sequence_number
 
-    def _v5_frame_encoder(self, modbus_frame):
+    def _v5_frame_encoder(self, modbus_frame) -> bytearray:
         """
         Take a modbus RTU frame and encode it in a V5 data logging stick frame
 
@@ -228,7 +234,7 @@ class PySolarmanV5:
         v5_frame[len(v5_frame) - 2] = self._calculate_v5_frame_checksum(v5_frame)
         return v5_frame
 
-    def _v5_frame_decoder(self, v5_frame):
+    def _v5_frame_decoder(self, v5_frame) -> bytearray:
         """Decodes a V5 data logging stick frame and returns a modbus RTU frame
 
         Modbus RTU frame will start at position 25 through ``len(v5_frame)-2``.
@@ -294,7 +300,7 @@ class PySolarmanV5:
 
         return modbus_frame
 
-    def _v5_time_response_frame(self, frame):
+    def _v5_time_response_frame(self, frame) -> bytearray:
         """
         Creates time response frame
         """
@@ -309,7 +315,7 @@ class PySolarmanV5:
         response_frame[-2] = self._calculate_v5_frame_checksum(response_frame)
         return response_frame
 
-    def _send_receive_v5_frame(self, data_logging_stick_frame):
+    def _send_receive_v5_frame(self, data_logging_stick_frame) -> bytearray:
         """
         Send v5 frame to the data logger and receive response
 
@@ -343,7 +349,7 @@ class PySolarmanV5:
         self.log.debug("[%s] RECD: %s", self.serial, v5_response.hex(" "))
         return v5_response
 
-    def _received_frame_is_valid(self, frame):
+    def _received_frame_is_valid(self, frame) -> bool:
         """
         Check that the frame is valid and that the serial number of the received
         frame matches with the last sent one.
@@ -356,7 +362,7 @@ class PySolarmanV5:
             return False
         return True
 
-    def _received_frame_response(self, frame):
+    def _received_frame_response(self, frame) -> tuple[bool, bytearray]:
         """
         Return response to frames with control codes 0x41 (handshake), 0x42 (data), 0x43 (wifi), 0x47 (heartbeat) and 0x48 (report)
         """
@@ -389,7 +395,7 @@ class PySolarmanV5:
             self.log.debug("[%s] V5_REPORT RESP: %s", self.serial, response_frame.hex(" "))
         return do_continue, response_frame
 
-    def _handle_protocol_frame(self, frame):
+    def _handle_protocol_frame(self, frame) -> bool:
         """
         Handles frames with known control codes :func:`_received_frame_response() <pysolarmanv5.PySolarmanV5._received_frame_response>`
         """
