@@ -26,7 +26,7 @@ class PySolarmanV5AsyncWrapper(PySolarmanV5Async):
         return self._needs_reconnect
 
     async def connect(self) -> bool:
-        if not self.reader_task:
+        if not self.reader_task or self.reader_task.done():
             self.log.info(f"[{self.serial}] Connecting to {self.address}:{self.port}")
             await super().connect()
             return True

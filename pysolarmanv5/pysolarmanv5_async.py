@@ -73,13 +73,17 @@ class PySolarmanV5Async(PySolarmanV5):
         :return: None
 
         """
-        if self.reader_task:
-            self.reader_task.cancel()
-        self.reader, self.writer = await asyncio.wait_for(
-            asyncio.open_connection(self.address, self.port), self.socket_timeout
-        )
-        loop = asyncio.get_running_loop()
-        self.reader_task = loop.create_task(self._conn_keeper(), name="ConnKeeper")
+        try:
+            if self.reader_task:
+                self.reader_task.cancel()
+            self.reader, self.writer = await asyncio.wait_for(
+                asyncio.open_connection(self.address, self.port), self.socket_timeout
+            )
+            loop = asyncio.get_running_loop()
+            self.reader_task = loop.create_task(self._conn_keeper(), name="ConnKeeper")
+        except:
+            self.reader_task = None
+            raise
 
     async def connect(self) -> None:
         """
