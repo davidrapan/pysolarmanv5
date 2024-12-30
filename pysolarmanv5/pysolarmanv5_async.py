@@ -179,6 +179,15 @@ class PySolarmanV5Async(PySolarmanV5):
             self.data_queue.put_nowait(data)
             self.data_wanted_ev.clear()
 
+    def _send_receive_except(self, e: Exception) -> Exception | None:
+        match e:
+            case AttributeError():
+                return NoSocketAvailableError("Connection already closed")
+            case OSError() if e.errno == errno.EHOSTUNREACH:
+                return TimeoutError
+            case _:
+                return None
+
     async def _handle_protocol_frame(self, frame):
         """
         Handles frames with known control codes :func:`_received_frame_response() <pysolarmanv5.PySolarmanV5._received_frame_response>`
@@ -188,16 +197,12 @@ class PySolarmanV5Async(PySolarmanV5):
             try:
                 self.writer.write(response_frame)
                 await self.writer.drain()
-            except (AttributeError, NoSocketAvailableError, TimeoutError, OSError) as e:
-                if isinstance(e, AttributeError):
-                    e = NoSocketAvailableError("Connection already closed")
-                if isinstance(e, OSError) and e.errno == errno.EHOSTUNREACH:
-                    e = TimeoutError
+            except Exception as e:
+                if (err := self._send_receive_except(e)):
+                    e = err
                 self.log.debug(  # pylint: disable=logging-fstring-interpolation
                     f"[{self.serial}] V5_PROTOCOL error: {type(e).__name__}{f': {e}' if f'{e}' else ''}"
                 )
-            except Exception as e:
-                self.log.exception("[%s] V5_PROTOCOL error: %s", self.serial, e)
         return do_continue
 
     async def _conn_keeper(self) -> None:
@@ -266,18 +271,9 @@ class PySolarmanV5Async(PySolarmanV5):
                 raise NoSocketAvailableError(
                     "Connection closed on read. Retry if auto-reconnect is enabled"
                 )
-        except AttributeError as exc:
-            raise NoSocketAvailableError("Connection already closed") from exc
-        except NoSocketAvailableError:
-            raise
-        except TimeoutError:
-            raise
-        except OSError as exc:
-            if exc.errno == errno.EHOSTUNREACH:
-                raise TimeoutError from exc
-            raise
-        except Exception as exc:
-            self.log.exception("[%s] Send/Receive error: %s", self.serial, exc)
+        except Exception as e:
+            if (err := self._send_receive_except(e)):
+                raise err from e
             raise
         finally:
             self.data_wanted_ev.clear()
