@@ -105,7 +105,6 @@ class PySolarmanV5Async(PySolarmanV5):
         Reconnect to the data logging stick. Called automatically if the auto-reconnect option is enabled
 
         :return: None
-        :raises NoSocketAvailableError: When connection cannot be re-established
 
         """
         try:
@@ -121,6 +120,8 @@ class PySolarmanV5Async(PySolarmanV5):
             self.log.debug(  # pylint: disable=logging-fstring-interpolation
                 f"Cannot open connection to {self.address}. [{type(e).__name__}{f': {e}' if f'{e}' else ''}]"
             )
+            await asyncio.sleep(0.5)
+            await self.reconnect()
 
     async def disconnect(self) -> None:
         """
@@ -130,6 +131,9 @@ class PySolarmanV5Async(PySolarmanV5):
 
         """
         try:
+            task, = [task for task in asyncio.all_tasks() if task.get_name() == "ReconnKeeper"]
+            if task:
+                task.cancel()
             if self.reader_task:
                 self.reader_task.cancel()
             if self.writer:
@@ -236,7 +240,7 @@ class PySolarmanV5Async(PySolarmanV5):
                 self.serial,
             )
             loop = asyncio.get_running_loop()
-            loop.create_task(self.reconnect())
+            loop.create_task(self.reconnect(), name="ReconnKeeper")
 
     async def _send_receive_v5_frame(self, data_logging_stick_frame):
         """Send v5 frame to the data logger and receive response
