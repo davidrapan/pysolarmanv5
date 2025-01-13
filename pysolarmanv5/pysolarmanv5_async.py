@@ -131,8 +131,7 @@ class PySolarmanV5Async(PySolarmanV5):
 
         """
         try:
-            task, = [task for task in asyncio.all_tasks() if task.get_name() == "ReconnKeeper"]
-            if task:
+            if (task := (t,) if (t := [task for task in asyncio.all_tasks() if task.get_name() == "ReconnKeeper"]) and len(t) > 0 else None):
                 task.cancel()
             if self.reader_task:
                 self.reader_task.cancel()
