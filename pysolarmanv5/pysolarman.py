@@ -1,16 +1,13 @@
 """pysolarman.py"""
 
-import types
-import struct
-
 from umodbus.client.tcp import read_coils, read_discrete_inputs, read_holding_registers, read_input_registers, write_single_coil, write_multiple_coils, write_single_register, write_multiple_registers, parse_response_adu
 
-from .pysolarmanv5 import CONTROL
+from .pysolarmanv5 import CONTROL_CODE
 from .pysolarmanv5_async import PySolarmanV5Async
 
 
 def is_ethernet_frame(frame):
-    if frame[4] == CONTROL.REQUEST and (frame_len := len(frame)) and frame_len > 6 and (f := int.from_bytes(frame[5:6], byteorder = "big") == len(frame[6:])):
+    if frame[4] == CONTROL_CODE.REQUEST and (frame_len := len(frame)) and frame_len > 6 and (f := int.from_bytes(frame[5:6], byteorder = "big") == len(frame[6:])):
         return (f and int.from_bytes(frame[8:9], byteorder = "big") == len(frame[9:])) if frame_len > 9 else f # [0xa5, 0x17, 0x00, 0x10, 0x45, 0x03, 0x00, 0x98, 0x02]
     return False
 
@@ -25,8 +22,12 @@ class PySolarmanV5AsyncWrapper(PySolarmanV5Async):
     def auto_reconnect(self):
         return self._needs_reconnect
 
+    @property
+    def connected(self):
+        return self.reader_task and not self.reader_task.done()
+
     async def connect(self) -> bool:
-        if not self.reader_task or self.reader_task.done():
+        if not self.connected:
             self.log.info(f"[{self.serial}] Connecting to {self.address}:{self.port}")
             await super().connect()
             return True
