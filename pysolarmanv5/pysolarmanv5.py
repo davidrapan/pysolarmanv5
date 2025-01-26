@@ -144,7 +144,12 @@ class PySolarmanV5:
     def _get_response_code(code: int) -> int:
         """
         Get response control code from request control code
-        
+
+        :param code: V5 request control code
+        :type code: int
+        :return: V5 response control code
+        :rtype: int
+
         """
         return code - 0x30
 
@@ -153,7 +158,7 @@ class PySolarmanV5:
         """
         Calculate checksum on all bytes
 
-        :param data: payload
+        :param data: data for checksum calculation
         :type data: bytes
         :return: Checksum value of all bytes
         :rtype: int
@@ -169,7 +174,7 @@ class PySolarmanV5:
         """
         Calculate checksum on all frame bytes except head, end and checksum
 
-        :param frame: V5 frame
+        :param frame: V5 frame for checksum calculation
         :type frame: bytes
         :return: Checksum value of V5 frame
         :rtype: int
@@ -180,7 +185,16 @@ class PySolarmanV5:
     def _v5_header(self, length: int, control: int, seq: bytes) -> bytearray:
         """
         Construct V5 header
-        
+
+        :param length: V5 frame length
+        :type length: int
+        :param control: V5 control code
+        :type control: int
+        :param seq: V5 sequence number
+        :type seq: bytes
+        :return: V5 frame header
+        :rtype: bytearray     
+
         """
         return bytearray(
             self.v5_start
@@ -191,12 +205,17 @@ class PySolarmanV5:
             + self.v5_serial
         )
 
-    def _v5_trailer(self, payload: bytes) -> bytearray:
+    def _v5_trailer(self, data: bytes) -> bytearray:
         """
         Construct V5 trailer
 
+        :param data: data for checksum calculation
+        :type data: bytes
+        :return: V5 frame trailer
+        :rtype: bytearray     
+
         """
-        return bytearray(struct.pack("<B", self._calculate_checksum(payload[1:])) + self.v5_end)
+        return bytearray(struct.pack("<B", self._calculate_checksum(data[1:])) + self.v5_end)
 
     def _get_next_sequence_number(self) -> int:
         """
@@ -244,7 +263,8 @@ class PySolarmanV5:
         return v5_frame + self._v5_trailer(v5_frame)
 
     def _v5_frame_decoder(self, v5_frame: bytes) -> bytearray:
-        """Decodes a V5 data logging stick frame and returns a modbus RTU frame
+        """
+        Decodes a V5 data logging stick frame and returns a modbus RTU frame
 
         Modbus RTU frame will start at position 25 through ``len(v5_frame)-2``.
 
@@ -303,6 +323,11 @@ class PySolarmanV5:
         """
         Creates time response frame
 
+        :param frame: V5 request frame
+        :type frame: bytes
+        :return: V5 time response frame
+        :rtype: bytearray
+
         """
         response_frame = self._v5_header(10, self._get_response_code(frame[4]), frame[5:7]) + bytearray(
             + struct.pack("<H", 0x0100) # Frame & sensor type?
@@ -351,6 +376,11 @@ class PySolarmanV5:
         Check that the frame is valid and that the serial number of the received
         frame matches with the last sent one
 
+        :param frame: V5 request frame
+        :type frame: bytes
+        :return: Is valid V5 frame?
+        :rtype: bool
+
         """
         if not frame.startswith(self.v5_start):
             self.log.debug("[%s] V5_MISMATCH: %s", self.serial, frame.hex(" "))
@@ -362,7 +392,12 @@ class PySolarmanV5:
 
     def _received_frame_response(self, frame: bytes) -> tuple[bool, bytearray]:
         """
-        Return response to frames with control codes 0x41 (handshake), 0x42 (data), 0x43 (wifi), 0x47 (heartbeat) and 0x48 (report)
+        Return response to frames with control codes 0x41 (handshake), 0x42 (data), 0x43 (info), 0x47 (heartbeat) and 0x48 (report)
+
+        :param frame: V5 request frame
+        :type frame: bytes
+        :return: Continue processing frame?, V5 time response frame
+        :rtype: tuple[bool, bytearray]
 
         """
         do_continue = True
@@ -379,6 +414,11 @@ class PySolarmanV5:
     def _handle_protocol_frame(self, frame: bytes) -> bool:
         """
         Handles frames with known control codes :func:`_received_frame_response() <pysolarmanv5.PySolarmanV5._received_frame_response>`
+
+        :param frame: V5 request frame
+        :type frame: bytes
+        :return: Continue processing frame?
+        :rtype: bool
 
         """
         do_continue, response_frame = self._received_frame_response(frame)
