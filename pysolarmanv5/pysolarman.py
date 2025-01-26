@@ -43,7 +43,7 @@ class PySolarmanAsync(PySolarmanV5AsyncWrapper):
         self._passthrough = serial <= 0
 
     async def _tcp_send_receive_frame(self, mb_request_frame):
-        return mb_compatibility(await self._send_receive_v5_frame(mb_request_frame), mb_request_frame)
+        return mb_compatibility(await self._send_receive_frame(mb_request_frame), mb_request_frame)
 
     async def _tcp_parse_response_adu(self, mb_request_frame):
         return parse_response_adu(await self._tcp_send_receive_frame(mb_request_frame), mb_request_frame)
