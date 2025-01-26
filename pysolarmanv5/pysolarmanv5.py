@@ -60,9 +60,6 @@ class PySolarmanV5:
     :type mb_slave_id: int, optional
     :param socket_timeout: Socket timeout duration in seconds, defaults to 60
     :type socket_timeout: int, optional
-    :param v5_error_correction: Enable naive error correction for V5 frames,
-        defaults to False
-    :type v5_error_correction: bool, optional
 
     .. versionadded:: v2.4.0
 
@@ -112,7 +109,6 @@ class PySolarmanV5:
         self.mb_slave_id = kwargs.get("mb_slave_id", 1)
         self.verbose = kwargs.get("verbose", False)
         self.socket_timeout = kwargs.get("socket_timeout", 60)
-        self.v5_error_correction = kwargs.get("v5_error_correction", False)
         self.sequence_number = None
 
         if self.verbose:
@@ -277,16 +273,6 @@ class PySolarmanV5:
         :raises V5FrameError: If parsing fails due to invalid V5 frame
 
         """
-        frame_len = len(v5_frame)
-        (payload_len,) = struct.unpack("<H", v5_frame[1:3])
-
-        frame_len_without_payload_len = 13
-
-        if frame_len != (frame_len_without_payload_len + payload_len):
-            self.log.debug("frame_len does not match payload_len.")
-            if self.v5_error_correction:
-                frame_len = frame_len_without_payload_len + payload_len
-
         if (v5_frame[0] != int.from_bytes(self.v5_start, byteorder="big")) or (
             v5_frame[-1] != int.from_bytes(self.v5_end, byteorder="big")
         ):
