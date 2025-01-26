@@ -57,6 +57,11 @@ class PySolarmanAsync(PySolarmanV5AsyncWrapper):
             return True
         return False
 
+    def _received_frame_response(self, frame: bytes) -> tuple[bool, bytearray]:
+        if not self._passthrough:
+            return super()._received_frame_response(frame)
+        return True, None
+
     async def read_coils(self, register_addr, quantity):
         if not self._passthrough:
             return await super().read_coils(register_addr, quantity)
